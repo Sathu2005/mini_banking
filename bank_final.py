@@ -74,23 +74,27 @@ def login():
         else:
             print("Invalid choice.")
 
+#Limit Login Attempts 
 def auth_login(role):
-    user = input("Enter your admin username: ") if role == 'admin' else input("Enter your username (National ID): ")
-    pw = input("Enter your password: ")
-    for u in load_users():
-        if u[0] == user and u[1] == pw and u[2] == role:
-            print("Login successful.")
-            return u
-    print("Invalid credentials.")
-    return None
+    attempts = 0
+    while attempts < 3:
+        user = input("Enter your admin username: ") if role == 'admin' else input("Enter your username (National ID): ")
+        pw = input("Enter your password: ")
+        for u in load_users():
+            if u[0] == user and u[1] == pw and u[2] == role:
+                print("Login successful.")
+                return u
+        attempts += 1
+        print(f"Invalid inputs. Attempts remaining: {3 - attempts}")
+    print("Too many failed attempts. Exiting.")
+    exit()
 
 def admin_menu():
     while True:
         print("\nAdmin Menu:")
         print("1. Create new customer account")
-        print("2. Delete customer account")
-        print("3. View customer info and transactions")
-        print("4. Logout")
+        print("2. View total transactions")
+        print("3. Logout")
         
         choice = input("Enter your choice: ")
 
@@ -99,14 +103,10 @@ def admin_menu():
             create_account()
 
         elif choice == '2':
-            print("You chose to delete a customer account.")  
-            delete_account()
+            print("Total transactions.")  
+            total_transactions()
 
         elif choice == '3':
-            print("You chose to view customer info and transactions.")  
-            view_account_info()
-
-        elif choice == '4':
             print("Logging out. Thank you!")  
             break
 
@@ -141,39 +141,25 @@ def create_account():
     append_transaction(acc_no, "Initial Deposit", balance)
     print(f"Customer account created. Account Number: {acc_no}")
 
-def delete_account():
-    key = input("Enter customer's Account Number or National ID to delete: ")
-    accs = load_accounts()
-    users = load_users()
-    acc = next((a for a in accs if a[0] == key or a[3] == key), None)
-    if not acc:
-        print("No such customer found.")
+#Display Total Transactions 
+def total_transactions():
+    lines = read_file(transactions_file)
+    if not lines:
+        print("No transactions found.")
         return
-    nid = acc[3]
-    accs = [a for a in accs if a[3] != nid]
-    users = [u for u in users if u[0] != nid]
-    save_accounts(accs)
-    save_users(users)
-    print("Customer account deleted.")
 
-def view_account_info():
-    key = input("Enter account number or National ID: ")
-    accs = load_accounts()
-    for a in accs:
-        if a[0] == key or a[3] == key:
-            print("Customer Information:")
-            print(f"Account Number: {a[0]}")
-            print(f"Name: {a[4]}")
-            print(f"National ID: {a[3]}")
-            print(f"Phone: {a[5]}")
-            print(f"Last Balance: {a[2]}")
-            print("Transaction History:")
-            for t in read_file(transactions_file):
-                parts = t.split(',')
-                if parts[0] == a[0]:
-                    print(f"{parts[3]} - {parts[1]}: {parts[2]}")
-            return
-    print("Account not found.")
+    txn_dict = {}
+    for line in lines:
+        parts = line.split(',')
+        if len(parts) >= 4:
+            acc_no = parts[0]
+            if acc_no not in txn_dict:
+                txn_dict[acc_no] = []
+            txn_dict[acc_no].append(parts)
+
+    total = sum(len(txns) for txns in txn_dict.values())
+    print(f"Total number of transactions across all accounts: {total}")
+
 
 def customer_menu(user):
     while True:
@@ -219,16 +205,17 @@ def deposit(username):
     if not acc:
         print("Account not found.")
         return
+#restrict negative deposit
     try:
-        amt = float(input("Enter amount to deposit: "))
-        if amt <= 0:
+        amount = float(input("Enter amount to deposit: "))
+        if amount <=0:
             raise ValueError
-        acc[2] = str(float(acc[2]) + amt)
+        acc[2] = str(float(acc[2]) + amount)
         update_account(acc)
-        append_transaction(acc[0], "Deposit", amt)
+        append_transaction(acc[0], "Deposit", amount)
         print("Deposited successfully.")
     except:
-        print("Invalid amount.")
+        print("Deposit amount cannot be negative or zero.")
 
 def withdraw(username):
     acc = find_account(username)
@@ -236,13 +223,13 @@ def withdraw(username):
         print("Account not found.")
         return
     try:
-        amt = float(input("Enter amount to withdraw: "))
-        if amt <= 0 or amt > float(acc[2]):
+        amount = float(input("Enter amount to withdraw: "))
+        if amount <= 0 or amount > float(acc[2]):
             print("Invalid or insufficient.")
             return
-        acc[2] = str(float(acc[2]) - amt)
+        acc[2] = str(float(acc[2]) - amount)
         update_account(acc)
-        append_transaction(acc[0], "Withdraw", amt)
+        append_transaction(acc[0], "Withdraw", amount)
         print("Withdrawn successfully.")
     except:
         print("Invalid amount.")

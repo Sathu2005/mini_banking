@@ -1,0 +1,2 @@
+user,user,admin
+200530401472,1234,customer
